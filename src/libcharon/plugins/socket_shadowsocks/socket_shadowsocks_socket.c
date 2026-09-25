@@ -100,57 +100,86 @@ struct private_socket_shadowsocks_socket_t {
 static void update_config(private_socket_shadowsocks_socket_t *this)
 {
 	char *server, *method, *password;
+	ss_ctx_t *ctx = NULL;
+	bool pending = FALSE, failed = FALSE;
 	int port;
 
-	/* the settings are read under the mutex so a snapshot based on older
-	 * values can not overwrite a context another thread already refreshed */
 	this->mutex->lock(this->mutex);
-	server = lib->settings->get_str(lib->settings,
-				"%s.plugins.socket-shadowsocks.server", NULL, lib->ns);
-	port = lib->settings->get_int(lib->settings,
-				"%s.plugins.socket-shadowsocks.port", 0, lib->ns);
-	method = lib->settings->get_str(lib->settings,
-				"%s.plugins.socket-shadowsocks.method", NULL, lib->ns);
-	password = lib->settings->get_str(lib->settings,
-				"%s.plugins.socket-shadowsocks.password", NULL, lib->ns);
-
-	if (streq(this->cfg_server, server) && this->cfg_port == port &&
-		streq(this->cfg_method, method) && streq(this->cfg_password, password))
+	while (TRUE)
 	{
+		/* the settings are read under the mutex so a snapshot based on
+		 * older values can not overwrite a context another thread already
+		 * installed */
+		server = lib->settings->get_str(lib->settings,
+					"%s.plugins.socket-shadowsocks.server", NULL, lib->ns);
+		port = lib->settings->get_int(lib->settings,
+					"%s.plugins.socket-shadowsocks.port", 0, lib->ns);
+		method = lib->settings->get_str(lib->settings,
+					"%s.plugins.socket-shadowsocks.method", NULL, lib->ns);
+		password = lib->settings->get_str(lib->settings,
+					"%s.plugins.socket-shadowsocks.password", NULL, lib->ns);
+
+		if (streq(this->cfg_server, server) && this->cfg_port == port &&
+			streq(this->cfg_method, method) &&
+			streq(this->cfg_password, password))
+		{	/* unchanged, or still the snapshot we just resolved for:
+			 * install the result (NULL ctx disables the relay) */
+			if (pending)
+			{
+				DESTROY_IF(this->ss);
+				this->ss = ctx;
+				this->cfg_failed = failed;
+				if (ctx)
+				{
+					DBG1(DBG_NET, "relaying IKE/ESP traffic via Shadowsocks"
+						 " server %#H (%s)", this->ss->get_server(this->ss),
+						 method);
+				}
+				else if (failed)
+				{
+					DBG1(DBG_NET, "invalid Shadowsocks configuration, IKE "
+						 "traffic will be dropped");
+				}
+			}
+			this->mutex->unlock(this->mutex);
+			return;
+		}
+		/* remember the snapshot we are about to resolve for */
+		free(this->cfg_server);
+		this->cfg_server = server ? strdup(server) : NULL;
+		this->cfg_port = port;
+		free(this->cfg_method);
+		this->cfg_method = method ? strdup(method) : NULL;
+		if (this->cfg_password)
+		{
+			memwipe(this->cfg_password, strlen(this->cfg_password));
+			free(this->cfg_password);
+		}
+		this->cfg_password = password ? strdup(password) : NULL;
 		this->mutex->unlock(this->mutex);
-		return;
-	}
-	free(this->cfg_server);
-	this->cfg_server = server ? strdup(server) : NULL;
-	this->cfg_port = port;
-	free(this->cfg_method);
-	this->cfg_method = method ? strdup(method) : NULL;
-	if (this->cfg_password)
-	{
-		memwipe(this->cfg_password, strlen(this->cfg_password));
-		free(this->cfg_password);
-	}
-	this->cfg_password = password ? strdup(password) : NULL;
-	DESTROY_IF(this->ss);
-	this->ss = NULL;
-	this->cfg_failed = FALSE;
 
-	if (server && *server)
-	{
-		this->ss = ss_ctx_create(server, port, method, password);
-		if (this->ss)
+		/* context creation may block on DNS resolution, keep the mutex
+		 * free so other packet threads are not stalled */
+		DESTROY_IF(ctx);
+		ctx = NULL;
+		failed = FALSE;
+		if (server && *server)
 		{
-			DBG1(DBG_NET, "relaying IKE/ESP traffic via Shadowsocks server "
-				 "%#H (%s)", this->ss->get_server(this->ss), method);
+			if (port < 1 || port > 65535)
+			{
+				DBG1(DBG_NET, "Shadowsocks server port %d out of range",
+					 port);
+			}
+			else
+			{
+				ctx = ss_ctx_create(server, (uint16_t)port, method,
+									password);
+			}
+			failed = !ctx;
 		}
-		else
-		{
-			DBG1(DBG_NET, "invalid Shadowsocks configuration, IKE traffic "
-				 "will be dropped");
-			this->cfg_failed = TRUE;
-		}
+		pending = TRUE;
+		this->mutex->lock(this->mutex);
 	}
-	this->mutex->unlock(this->mutex);
 }
 
 METHOD(socket_t, receiver, status_t,
