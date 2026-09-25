@@ -3,7 +3,7 @@ name: Build Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [feature/ikev2-over-shadowsocks]
+    branches: [master]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -37,6 +37,18 @@ jobs:
           java-version: 17
           cache: 'gradle'
 
+      # Required repository secrets:
+      #   ANDROID_KEYSTORE_BASE64   base64-encoded .jks/.keystore file
+      #   ANDROID_KEYSTORE_PASSWORD keystore password
+      #   ANDROID_KEY_ALIAS         alias of the signing key
+      #   ANDROID_KEY_PASSWORD      key password
+      - name: Decode signing keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/android.keystore"
+          echo "KEYSTORE_FILE=$RUNNER_TEMP/android.keystore" >> "$GITHUB_ENV"
+
       # same as scripts/test.sh build_openssl(): openssl tag pinned there
       - name: Fetch OpenSSL sources
         run: |
@@ -57,13 +69,33 @@ jobs:
           make -j$(nproc) distdir
           rm -rf strongswan-*
 
-      - name: Build APK
+      - name: Build release APK
         run: |
           cd src/frontends/android
-          ./gradlew assembleDebug
+          ./gradlew assembleRelease
+
+      - name: Sign APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          BUILD_TOOLS=${ANDROID_HOME}/build-tools/36.0.0
+          APK_DIR=src/frontends/android/app/build/outputs/apk/release
+          $BUILD_TOOLS/zipalign -f -p 4 \
+            $APK_DIR/app-release-unsigned.apk \
+            $RUNNER_TEMP/app-release-aligned.apk
+          $BUILD_TOOLS/apksigner sign \
+            --ks "$KEYSTORE_FILE" \
+            --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass env:KEYSTORE_PASSWORD \
+            --key-pass env:KEY_PASSWORD \
+            --out $APK_DIR/app-release-signed.apk \
+            $RUNNER_TEMP/app-release-aligned.apk
+          $BUILD_TOOLS/apksigner verify --verbose $APK_DIR/app-release-signed.apk
 
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: strongswan-ss-debug-apk
-          path: src/frontends/android/app/build/outputs/apk/debug/app-debug.apk
+          name: strongswan-ss-release-apk
+          path: src/frontends/android/app/build/outputs/apk/release/app-release-signed.apk
           retention-days: 14
