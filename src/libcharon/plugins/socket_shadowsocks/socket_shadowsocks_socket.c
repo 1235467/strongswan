@@ -72,9 +72,13 @@ struct private_socket_shadowsocks_socket_t {
 	ss_ctx_t *ss;
 
 	/**
-	 * Fingerprint of the configuration the context was created from.
+	 * Configuration the context was created from, for change detection
+	 * (NULL fields mean unset, compared exactly so every byte counts).
 	 */
-	char *cfg;
+	char *cfg_server;
+	int cfg_port;
+	char *cfg_method;
+	char *cfg_password;
 
 	/**
 	 * TRUE if SS is configured but context creation failed (fail closed).
@@ -95,9 +99,12 @@ struct private_socket_shadowsocks_socket_t {
  */
 static void update_config(private_socket_shadowsocks_socket_t *this)
 {
-	char *server, *method, *password, buf[512];
+	char *server, *method, *password;
 	int port;
 
+	/* the settings are read under the mutex so a snapshot based on older
+	 * values can not overwrite a context another thread already refreshed */
+	this->mutex->lock(this->mutex);
 	server = lib->settings->get_str(lib->settings,
 				"%s.plugins.socket-shadowsocks.server", NULL, lib->ns);
 	port = lib->settings->get_int(lib->settings,
@@ -107,16 +114,23 @@ static void update_config(private_socket_shadowsocks_socket_t *this)
 	password = lib->settings->get_str(lib->settings,
 				"%s.plugins.socket-shadowsocks.password", NULL, lib->ns);
 
-	snprintf(buf, sizeof(buf), "%s|%d|%s|%s", server ?: "", port,
-			 method ?: "", password ?: "");
-	this->mutex->lock(this->mutex);
-	if (this->cfg && streq(this->cfg, buf))
+	if (streq(this->cfg_server, server) && this->cfg_port == port &&
+		streq(this->cfg_method, method) && streq(this->cfg_password, password))
 	{
 		this->mutex->unlock(this->mutex);
 		return;
 	}
-	free(this->cfg);
-	this->cfg = strdup(buf);
+	free(this->cfg_server);
+	this->cfg_server = server ? strdup(server) : NULL;
+	this->cfg_port = port;
+	free(this->cfg_method);
+	this->cfg_method = method ? strdup(method) : NULL;
+	if (this->cfg_password)
+	{
+		memwipe(this->cfg_password, strlen(this->cfg_password));
+		free(this->cfg_password);
+	}
+	this->cfg_password = password ? strdup(password) : NULL;
 	DESTROY_IF(this->ss);
 	this->ss = NULL;
 	this->cfg_failed = FALSE;
@@ -156,6 +170,15 @@ METHOD(socket_t, receiver, status_t,
 			return status;
 		}
 		this->mutex->lock(this->mutex);
+		if (this->cfg_failed)
+		{	/* Shadowsocks configured but unusable: drop, never accept
+			 * unauthenticated plaintext (fail closed) */
+			this->mutex->unlock(this->mutex);
+			DBG2(DBG_NET, "discarding packet from %#H while Shadowsocks "
+				 "configuration is invalid", pkt->get_source(pkt));
+			pkt->destroy(pkt);
+			continue;
+		}
 		if (!this->ss)
 		{
 			this->mutex->unlock(this->mutex);
@@ -245,7 +268,13 @@ METHOD(socket_t, destroy, void,
 {
 	this->inner->destroy(this->inner);
 	DESTROY_IF(this->ss);
-	free(this->cfg);
+	free(this->cfg_server);
+	free(this->cfg_method);
+	if (this->cfg_password)
+	{
+		memwipe(this->cfg_password, strlen(this->cfg_password));
+		free(this->cfg_password);
+	}
 	this->mutex->destroy(this->mutex);
 	free(this);
 }

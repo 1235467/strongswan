@@ -329,7 +329,7 @@ static aead_t *create_aead(private_ss_ctx_t *this, chunk_t subkey)
 static bool encrypt_classic(private_ss_ctx_t *this, host_t *dst,
 							chunk_t payload, chunk_t *out)
 {
-	chunk_t addr, plain, salt, subkey, ct;
+	chunk_t addr, plain, salt, subkey, ct = chunk_empty;
 	uint8_t iv[SS_AEAD_IV_LEN] = {};
 	aead_t *aead;
 	bool success = FALSE;
@@ -365,8 +365,10 @@ static bool encrypt_classic(private_ss_ctx_t *this, host_t *dst,
 out:
 	chunk_clear(&subkey);
 	if (!success)
-	{
+	{	/* salt is only consumed on success; AEAD implementations may
+		 * allocate ct before failing (openssl does) */
 		chunk_free(&salt);
+		chunk_free(&ct);
 	}
 	chunk_clear(&plain);
 	return success;
@@ -378,7 +380,7 @@ out:
 static bool decrypt_classic(private_ss_ctx_t *this, chunk_t in,
 							host_t **src, chunk_t *payload)
 {
-	chunk_t salt, subkey, ct, plain;
+	chunk_t salt, subkey, ct, plain = chunk_empty;
 	host_t *host;
 	uint8_t iv[SS_AEAD_IV_LEN] = {};
 	aead_t *aead;
@@ -420,6 +422,11 @@ static bool decrypt_classic(private_ss_ctx_t *this, chunk_t in,
 			chunk_free(&plain);
 			success = FALSE;
 		}
+	}
+	else
+	{	/* the AEAD implementation may have allocated plain already
+		 * (openssl does before the tag verification) */
+		chunk_free(&plain);
 	}
 out:
 	chunk_clear(&subkey);
