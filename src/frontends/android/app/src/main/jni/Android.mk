@@ -5,7 +5,7 @@ include $(CLEAR_VARS)
 # MainActivity.java)
 strongswan_USE_BYOD := true
 
-strongswan_CHARON_PLUGINS := android-log socket-default openssl nonce \
+strongswan_CHARON_PLUGINS := android-log socket-shadowsocks openssl nonce \
 	pkcs1 pem x509 xcbc kdf revocation \
 	eap-identity eap-mschapv2 eap-md5 eap-gtc eap-tls
 

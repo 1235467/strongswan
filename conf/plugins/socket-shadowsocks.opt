@@ -1,0 +1,18 @@
+charon.plugins.socket-shadowsocks.server =
+	Shadowsocks server to relay IKE/ESP traffic through (hostname or IP
+	address).  If not set, the socket behaves exactly like socket-default.
+
+	If a server is configured, all IKE and UDP-encapsulated ESP packets are
+	encrypted in Shadowsocks UDP relay format and sent to this server, which
+	forwards them to the VPN gateway embedded in each packet.
+
+charon.plugins.socket-shadowsocks.port =
+	UDP port of the Shadowsocks server.
+
+charon.plugins.socket-shadowsocks.method =
+	Cipher method (e.g. aes-128-gcm, aes-256-gcm, chacha20-ietf-poly1305).
+	2022-blake3-* methods (SIP022) are recognized but not yet implemented.
+
+charon.plugins.socket-shadowsocks.password =
+	Password for the Shadowsocks server.  For 2022-blake3-* methods this must
+	be a base64-encoded pre-shared key of the cipher's key length.

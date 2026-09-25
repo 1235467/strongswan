@@ -324,6 +324,10 @@ public class CharonVpnService extends VpnService implements Runnable, VpnStateSe
 							writer.setValue("connection.strict_revocation", (mCurrentProfile.getFlags() & VpnProfile.FLAGS_STRICT_REVOCATION) != 0);
 							writer.setValue("connection.ike_proposal", mCurrentProfile.getIkeProposal());
 							writer.setValue("connection.esp_proposal", mCurrentProfile.getEspProposal());
+							writer.setValue("connection.ss_server", mCurrentProfile.getSsServer());
+							writer.setValue("connection.ss_port", mCurrentProfile.getSsPort());
+							writer.setValue("connection.ss_method", mCurrentProfile.getSsMethod());
+							writer.setValue("connection.ss_password", mCurrentProfile.getSsPassword());
 							initiate(writer.serialize());
 						}
 						else

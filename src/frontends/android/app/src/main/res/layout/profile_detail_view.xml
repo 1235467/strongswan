@@ -606,6 +606,84 @@
                 </org.strongswan.android.ui.widget.TextInputLayoutHelper>
 
                 <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:layout_marginTop="10dp"
+                    android:text="@string/profile_ss_server_label"
+                    android:textSize="20sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:layout_marginTop="10dp"
+                    android:layout_marginBottom="10dp"
+                    android:text="@string/profile_ss_server_intro"
+                    android:textSize="12sp" />
+
+                <org.strongswan.android.ui.widget.TextInputLayoutHelper
+                    android:id="@+id/ss_server_wrap"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="@string/profile_ss_host_label"
+                    app:helper_text="@string/profile_ss_host_hint">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/ss_server"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="textNoSuggestions"
+                        android:singleLine="true" />
+
+                </org.strongswan.android.ui.widget.TextInputLayoutHelper>
+
+                <org.strongswan.android.ui.widget.TextInputLayoutHelper
+                    android:id="@+id/ss_port_wrap"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="@string/profile_ss_port_label"
+                    app:helper_text="@string/profile_ss_port_hint">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/ss_port"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="number|textNoSuggestions"
+                        android:singleLine="true" />
+
+                </org.strongswan.android.ui.widget.TextInputLayoutHelper>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:layout_marginTop="10dp"
+                    android:text="@string/profile_ss_method_label" />
+
+                <Spinner
+                    android:id="@+id/ss_method"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:entries="@array/ss_methods" />
+
+                <org.strongswan.android.ui.widget.TextInputLayoutHelper
+                    android:id="@+id/ss_password_wrap"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="@string/profile_ss_password_label"
+                    app:helper_text="@string/profile_ss_password_hint">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/ss_password"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="textPassword|textNoSuggestions"
+                        android:singleLine="true" />
+
+                </org.strongswan.android.ui.widget.TextInputLayoutHelper>
+
+                <TextView
                     android:id="@+id/profile_id_label"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"

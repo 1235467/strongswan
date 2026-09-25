@@ -132,6 +132,15 @@
     <string name="profile_proxy_port_hint">Port to access the HTTP proxy server, defaults to 8080</string>
     <string name="profile_proxy_exclusions_label">Proxy exclusion list</string>
     <string name="profile_proxy_exclusions_hint">Optional list of hosts for which the HTTP proxy server is not used (separated by spaces, and wildcards are possible, e.g. \"direct.example.net *.example.com\")</string>
+    <string name="profile_ss_server_label">Shadowsocks 中继</string>
+    <string name="profile_ss_server_intro">可选的 Shadowsocks 服务器，用于中转 IKEv2/IPsec 流量本身。所有 IKE 和 ESP 报文都会使用所配置的加密方式封装后发送给 Shadowsocks 服务器，由它通过 UDP 转发到 VPN 网关。留空则直连。</string>
+    <string name="profile_ss_host_label">Shadowsocks 服务器</string>
+    <string name="profile_ss_host_hint">Shadowsocks 服务器的 IP 地址或主机名</string>
+    <string name="profile_ss_port_label">Shadowsocks 端口</string>
+    <string name="profile_ss_port_hint">Shadowsocks 服务器端口（配置服务器时必填）</string>
+    <string name="profile_ss_method_label">Shadowsocks 加密方式</string>
+    <string name="profile_ss_password_label">Shadowsocks 密码</string>
+    <string name="profile_ss_password_hint">Shadowsocks 服务器密码（2022-blake3-* 方式为 base64 编码的 PSK）</string>
     <string name="profile_import">导入VPN配置</string>
     <string name="profile_import_failed">导入VPN配置失败</string>
     <string name="profile_import_failed_detail">导入VPN配置失败: %1$s</string>
@@ -148,6 +157,7 @@
     <!-- Warnings/Notifications in the details view -->
     <string name="alert_text_no_input_gateway">必填信息以初始化连接</string>
     <string name="alert_text_no_input_username">请输入您的用户名</string>
+    <string name="alert_text_no_input_password">请输入密码</string>
     <string name="alert_text_nocertfound_title">未选择CA证书</string>
     <string name="alert_text_nocertfound">请选择一项或激活 <i>自动选择</i></string>
     <string name="alert_text_out_of_range">请输入一个数字范围从%1$d到%2$d</string>

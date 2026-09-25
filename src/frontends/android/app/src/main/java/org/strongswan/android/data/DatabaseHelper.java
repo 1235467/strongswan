@@ -70,6 +70,10 @@ public class DatabaseHelper extends SQLiteOpenHelper
 		new DbColumn(VpnProfileDataSource.KEY_PROXY_HOST, "TEXT", 19),
 		new DbColumn(VpnProfileDataSource.KEY_PROXY_PORT, "INTEGER", 19),
 		new DbColumn(VpnProfileDataSource.KEY_PROXY_EXCLUSIONS, "TEXT", 19),
+		new DbColumn(VpnProfileDataSource.KEY_SS_SERVER, "TEXT", 20),
+		new DbColumn(VpnProfileDataSource.KEY_SS_PORT, "INTEGER", 20),
+		new DbColumn(VpnProfileDataSource.KEY_SS_METHOD, "TEXT", 20),
+		new DbColumn(VpnProfileDataSource.KEY_SS_PASSWORD, "TEXT", 20),
 	});
 
 	public static final DbTable TABLE_TRUSTED_CERTIFICATE = new DbTable(TABLE_NAME_TRUSTED_CERTIFICATE, 18, new DbColumn[]{
@@ -87,7 +91,7 @@ public class DatabaseHelper extends SQLiteOpenHelper
 		new DbColumn(ManagedUserCertificate.KEY_PASSWORD, "TEXT", 18),
 	});
 
-	private static final int DATABASE_VERSION = 19;
+	private static final int DATABASE_VERSION = 20;
 
 	private static final Set<DbTable> TABLES;
 

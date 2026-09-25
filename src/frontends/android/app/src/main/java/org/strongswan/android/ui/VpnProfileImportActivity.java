@@ -566,6 +566,18 @@ public class VpnProfileImportActivity extends AppCompatActivity
 			profile.setProxyExclusions(getFlatStringList(proxy, "exclusions"));
 		}
 
+		JSONObject shadowsocks = obj.optJSONObject("shadowsocks");
+		if (shadowsocks != null)
+		{
+			String ssServer = shadowsocks.optString("server");
+			String ssMethod = shadowsocks.optString("method");
+			String ssPassword = shadowsocks.optString("password");
+			profile.setSsServer(TextUtils.isEmpty(ssServer) ? null : ssServer);
+			profile.setSsPort(getInteger(shadowsocks, "port", 1, 65535));
+			profile.setSsMethod(TextUtils.isEmpty(ssMethod) ? null : ssMethod);
+			profile.setSsPassword(TextUtils.isEmpty(ssPassword) ? null : ssPassword);
+		}
+
 		JSONObject split = obj.optJSONObject("split-tunneling");
 		if (split != null)
 		{

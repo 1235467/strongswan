@@ -154,6 +154,10 @@ public class VpnProfileSqlDataSource implements VpnProfileDataSource
 		profile.setProxyHost(cursor.getString(cursor.getColumnIndexOrThrow(KEY_PROXY_HOST)));
 		profile.setProxyPort(getInt(cursor, cursor.getColumnIndexOrThrow(KEY_PROXY_PORT)));
 		profile.setProxyExclusions(cursor.getString(cursor.getColumnIndexOrThrow(KEY_PROXY_EXCLUSIONS)));
+		profile.setSsServer(cursor.getString(cursor.getColumnIndexOrThrow(KEY_SS_SERVER)));
+		profile.setSsPort(getInt(cursor, cursor.getColumnIndexOrThrow(KEY_SS_PORT)));
+		profile.setSsMethod(cursor.getString(cursor.getColumnIndexOrThrow(KEY_SS_METHOD)));
+		profile.setSsPassword(cursor.getString(cursor.getColumnIndexOrThrow(KEY_SS_PASSWORD)));
 		return profile;
 	}
 
@@ -185,6 +189,10 @@ public class VpnProfileSqlDataSource implements VpnProfileDataSource
 		values.put(KEY_PROXY_HOST, profile.getProxyHost());
 		values.put(KEY_PROXY_PORT, profile.getProxyPort());
 		values.put(KEY_PROXY_EXCLUSIONS, profile.getProxyExclusions());
+		values.put(KEY_SS_SERVER, profile.getSsServer());
+		values.put(KEY_SS_PORT, profile.getSsPort());
+		values.put(KEY_SS_METHOD, profile.getSsMethod());
+		values.put(KEY_SS_PASSWORD, profile.getSsPassword());
 		return values;
 	}
 

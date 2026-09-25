@@ -222,6 +222,7 @@ ARG_ENABL_SET([kernel-iph],     [enable the Windows IP Helper based networking b
 ARG_ENABL_SET([kernel-libipsec],[enable the libipsec kernel interface.])
 ARG_ENABL_SET([kernel-wfp],     [enable the Windows Filtering Platform IPsec backend.])
 ARG_DISBL_SET([socket-default], [disable default socket implementation for charon.])
+ARG_ENABL_SET([socket-shadowsocks], [enable socket implementation for charon relaying IKE/ESP UDP traffic via a Shadowsocks server (mutually exclusive with socket-default).])
 ARG_ENABL_SET([socket-dynamic], [enable dynamic socket implementation for charon])
 ARG_ENABL_SET([socket-win],     [enable Winsock2 based socket implementation for charon])
 # configuration/control plugins
@@ -1518,6 +1519,7 @@ ADD_PLUGIN([selinux],              [c charon nm cmd])
 ADD_PLUGIN([resolve],              [c charon cmd])
 ADD_PLUGIN([save-keys],            [c])
 ADD_PLUGIN([socket-default],       [c charon nm cmd])
+ADD_PLUGIN([socket-shadowsocks],   [c charon nm cmd])
 ADD_PLUGIN([socket-dynamic],       [c charon cmd])
 ADD_PLUGIN([socket-win],           [c charon])
 ADD_PLUGIN([bypass-lan],           [c charon nm cmd])
@@ -1721,6 +1723,7 @@ AM_CONDITIONAL(USE_IMC_HCD, test x$imc_hcd = xtrue)
 AM_CONDITIONAL(USE_IMV_HCD, test x$imv_hcd = xtrue)
 AM_CONDITIONAL(USE_SAVE_KEYS, test x$save_keys = xtrue)
 AM_CONDITIONAL(USE_SOCKET_DEFAULT, test x$socket_default = xtrue)
+AM_CONDITIONAL(USE_SOCKET_SHADOWSOCKS, test x$socket_shadowsocks = xtrue)
 AM_CONDITIONAL(USE_SOCKET_DYNAMIC, test x$socket_dynamic = xtrue)
 AM_CONDITIONAL(USE_SOCKET_WIN, test x$socket_win = xtrue)
 AM_CONDITIONAL(USE_BYPASS_LAN, test x$bypass_lan = xtrue)
@@ -1989,6 +1992,7 @@ AC_CONFIG_FILES([
 	src/libcharon/plugins/tnc_pdp/Makefile
 	src/libcharon/plugins/save_keys/Makefile
 	src/libcharon/plugins/socket_default/Makefile
+	src/libcharon/plugins/socket_shadowsocks/Makefile
 	src/libcharon/plugins/socket_dynamic/Makefile
 	src/libcharon/plugins/socket_win/Makefile
 	src/libcharon/plugins/bypass_lan/Makefile

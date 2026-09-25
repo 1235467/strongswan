@@ -445,6 +445,22 @@ static void initiate(settings_t *settings)
 						"charon.keep_alive_dpd_margin",
 						ANDROID_KEEPALIVE_DPD_MARGIN);
 
+	/* relay IKE/ESP via a Shadowsocks server if configured for the profile;
+	 * the socket-shadowsocks plugin reads its config lazily on the first
+	 * packet, so it picks these up even though the socket exists already */
+	lib->settings->set_str(lib->settings,
+						"charon.plugins.socket-shadowsocks.server",
+						settings->get_str(settings, "connection.ss_server", NULL));
+	lib->settings->set_int(lib->settings,
+						"charon.plugins.socket-shadowsocks.port",
+						settings->get_int(settings, "connection.ss_port", 0));
+	lib->settings->set_str(lib->settings,
+						"charon.plugins.socket-shadowsocks.method",
+						settings->get_str(settings, "connection.ss_method", NULL));
+	lib->settings->set_str(lib->settings,
+						"charon.plugins.socket-shadowsocks.password",
+						settings->get_str(settings, "connection.ss_password", NULL));
+
 	/* reload plugins after changing settings */
 	lib->plugins->reload(lib->plugins, NULL);
 

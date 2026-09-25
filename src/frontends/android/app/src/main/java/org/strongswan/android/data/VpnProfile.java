@@ -43,6 +43,8 @@ public class VpnProfile implements Cloneable
 	private String mName, mGateway, mUsername, mPassword, mCertificate, mUserCertificate;
 	private String mRemoteId, mLocalId, mExcludedSubnets, mIncludedSubnets, mSelectedApps;
 	private String mIkeProposal, mEspProposal, mDnsServers, mProxyHost, mProxyExclusions;
+	private String mSsServer, mSsMethod, mSsPassword;
+	private Integer mSsPort;
 	private Integer mMTU, mPort, mProxyPort, mSplitTunneling, mNATKeepAlive, mFlags;
 	private SelectedAppsHandling mSelectedAppsHandling = SelectedAppsHandling.SELECTED_APPS_DISABLE;
 	private VpnType mVpnType;
@@ -341,6 +343,46 @@ public class VpnProfile implements Cloneable
 	public void setProxyExclusions(String exclusions)
 	{
 		this.mProxyExclusions = exclusions;
+	}
+
+	public String getSsServer()
+	{
+		return mSsServer;
+	}
+
+	public void setSsServer(String server)
+	{
+		this.mSsServer = server;
+	}
+
+	public Integer getSsPort()
+	{
+		return mSsPort;
+	}
+
+	public void setSsPort(Integer port)
+	{
+		this.mSsPort = port;
+	}
+
+	public String getSsMethod()
+	{
+		return mSsMethod;
+	}
+
+	public void setSsMethod(String method)
+	{
+		this.mSsMethod = method;
+	}
+
+	public String getSsPassword()
+	{
+		return mSsPassword;
+	}
+
+	public void setSsPassword(String password)
+	{
+		this.mSsPassword = password;
 	}
 
 	public Integer getSplitTunneling()
