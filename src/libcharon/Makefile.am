@@ -229,6 +229,13 @@ if MONOLITHIC
 endif
 endif
 
+if USE_SOCKET_SHADOWSOCKS
+  SUBDIRS += plugins/socket_shadowsocks
+if MONOLITHIC
+  libcharon_la_LIBADD += plugins/socket_shadowsocks/libstrongswan-socket-shadowsocks.la
+endif
+endif
+
 if USE_SOCKET_DYNAMIC
   SUBDIRS += plugins/socket_dynamic
 if MONOLITHIC

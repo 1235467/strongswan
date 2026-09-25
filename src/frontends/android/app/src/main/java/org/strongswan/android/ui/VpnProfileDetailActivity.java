@@ -73,6 +73,7 @@ import org.strongswan.android.utils.Utils;
 import java.net.UnknownHostException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.UUID;
@@ -153,6 +154,13 @@ public class VpnProfileDetailActivity extends AppCompatActivity
 	private EditText mProxyPort;
 	private TextInputLayoutHelper mProxyPortWrap;
 	private EditText mProxyExclusions;
+	private EditText mSsServer;
+	private TextInputLayoutHelper mSsServerWrap;
+	private EditText mSsPort;
+	private TextInputLayoutHelper mSsPortWrap;
+	private Spinner mSsMethod;
+	private EditText mSsPassword;
+	private TextInputLayoutHelper mSsPasswordWrap;
 
 	private final ActivityResultLauncher<Intent> mInstallPKCS12 = registerForActivityResult(
 		new ActivityResultContracts.StartActivityForResult(),
@@ -265,6 +273,14 @@ public class VpnProfileDetailActivity extends AppCompatActivity
 		mProxyPort = findViewById(R.id.proxy_port);
 		mProxyPortWrap = findViewById(R.id.proxy_port_wrap);
 		mProxyExclusions = findViewById(R.id.proxy_exclusions);
+
+		mSsServer = findViewById(R.id.ss_server);
+		mSsServerWrap = findViewById(R.id.ss_server_wrap);
+		mSsPort = findViewById(R.id.ss_port);
+		mSsPortWrap = findViewById(R.id.ss_port_wrap);
+		mSsMethod = findViewById(R.id.ss_method);
+		mSsPassword = findViewById(R.id.ss_password);
+		mSsPasswordWrap = findViewById(R.id.ss_password_wrap);
 
 		mProfileIdLabel = findViewById(R.id.profile_id_label);
 		mProfileId = findViewById(R.id.profile_id);
@@ -598,7 +614,7 @@ public class VpnProfileDetailActivity extends AppCompatActivity
 				   mProfile.getIkeProposal() != null || mProfile.getEspProposal() != null ||
 				   mProfile.getDnsServers() != null || mProfile.getLocalId() != null ||
 				   mProfile.getProxyHost() != null || mProfile.getProxyPort() != null ||
-				   mProfile.getProxyExclusions() != null;
+				   mProfile.getProxyExclusions() != null || mProfile.getSsServer() != null;
 		}
 		mShowAdvanced.setVisibility(!show ? View.VISIBLE : View.GONE);
 		mAdvancedSettings.setVisibility(show ? View.VISIBLE : View.GONE);
@@ -719,6 +735,19 @@ public class VpnProfileDetailActivity extends AppCompatActivity
 			mProxyPortWrap.setError(String.format(getString(R.string.alert_text_out_of_range), 1, 65535));
 			valid = false;
 		}
+		if (getString(mSsServer) != null)
+		{	/* if a Shadowsocks server is configured, port and password are required */
+			if (getInteger(mSsPort) == null || !validateInteger(mSsPort, 1, 65535))
+			{
+				mSsPortWrap.setError(String.format(getString(R.string.alert_text_out_of_range), 1, 65535));
+				valid = false;
+			}
+			if (getString(mSsPassword) == null)
+			{
+				mSsPasswordWrap.setError(getString(R.string.alert_text_no_input_password));
+				valid = false;
+			}
+		}
 		return valid;
 	}
 
@@ -771,6 +800,11 @@ public class VpnProfileDetailActivity extends AppCompatActivity
 		mProfile.setProxyHost(getString(mProxyHost));
 		mProfile.setProxyPort(getInteger(mProxyPort));
 		mProfile.setProxyExclusions(getString(mProxyExclusions));
+		mProfile.setSsServer(getString(mSsServer));
+		mProfile.setSsPort(getInteger(mSsPort));
+		mProfile.setSsMethod(mProfile.getSsServer() == null ? null
+				: (String)mSsMethod.getSelectedItem());
+		mProfile.setSsPassword(getString(mSsPassword));
 	}
 
 	/**
@@ -811,6 +845,15 @@ public class VpnProfileDetailActivity extends AppCompatActivity
 				mProxyHost.setText(mProfile.getProxyHost());
 				mProxyPort.setText(mProfile.getProxyPort() != null ? mProfile.getProxyPort().toString() : null);
 				mProxyExclusions.setText(mProfile.getProxyExclusions());
+				mSsServer.setText(mProfile.getSsServer());
+				mSsPort.setText(mProfile.getSsPort() != null ? mProfile.getSsPort().toString() : null);
+				mSsPassword.setText(mProfile.getSsPassword());
+				if (mProfile.getSsMethod() != null)
+				{
+					String[] methods = getResources().getStringArray(R.array.ss_methods);
+					int idx = Arrays.asList(methods).indexOf(mProfile.getSsMethod());
+					mSsMethod.setSelection(idx < 0 ? 0 : idx);
+				}
 				mProfileId.setText(mProfile.getUUID().toString());
 				flags = mProfile.getFlags();
 				useralias = mProfile.getUserCertificateAlias();
@@ -907,6 +950,10 @@ public class VpnProfileDetailActivity extends AppCompatActivity
 		mProxyHost.setEnabled(!readOnly);
 		mProxyPort.setEnabled(!readOnly);
 		mProxyExclusions.setEnabled(!readOnly);
+		mSsServer.setEnabled(!readOnly);
+		mSsPort.setEnabled(!readOnly);
+		mSsMethod.setEnabled(!readOnly);
+		mSsPassword.setEnabled(!readOnly);
 
 		mSelectVpnType.setEnabled(!readOnly);
 		mCertReq.setEnabled(!readOnly);

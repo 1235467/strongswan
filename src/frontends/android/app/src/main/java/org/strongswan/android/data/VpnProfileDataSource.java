@@ -54,6 +54,10 @@ public interface VpnProfileDataSource
 	String KEY_PROXY_HOST = "proxy_host";
 	String KEY_PROXY_PORT = "proxy_port";
 	String KEY_PROXY_EXCLUSIONS = "proxy_exclusions";
+	String KEY_SS_SERVER = "ss_server";
+	String KEY_SS_PORT = "ss_port";
+	String KEY_SS_METHOD = "ss_method";
+	String KEY_SS_PASSWORD = "ss_password";
 	String KEY_READ_ONLY = "read_only";
 
 	/**

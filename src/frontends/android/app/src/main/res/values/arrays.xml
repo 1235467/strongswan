@@ -33,6 +33,15 @@
     </string-array>
     <string name="managed_config_vpn_type_default_value" translatable="false">ikev2-eap</string>
 
+    <!-- Shadowsocks cipher methods, see socket_shadowsocks plugin;
+         2022-blake3-* (SIP022) intentionally not listed until implemented -->
+    <string-array name="ss_methods" translatable="false">
+        <item>aes-128-gcm</item>
+        <item>aes-192-gcm</item>
+        <item>aes-256-gcm</item>
+        <item>chacha20-ietf-poly1305</item>
+    </string-array>
+
     <!-- the order here must match the enum entries in VpnProfile.java -->
     <string-array name="apps_handling">
         <item>All applications use the VPN</item>

@@ -1,0 +1,69 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/ikev2-over-shadowsocks]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Install host build dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y automake autoconf libtool pkgconf \
+            bison flex gperf gettext perl jq
+
+      - name: Install Android SDK components
+        run: |
+          yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --licenses >/dev/null
+          NDK_VERSION=$(grep "ndkVersion" src/frontends/android/app/build.gradle | sed -e 's/.*"\(.*\)"/\1/')
+          COMPILE_SDK=$(grep "compileSdk" src/frontends/android/app/build.gradle | sed -e 's/.*= //')
+          echo "Using NDK ${NDK_VERSION}, platform android-${COMPILE_SDK}"
+          ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --install \
+            "ndk;${NDK_VERSION}" "platforms;android-${COMPILE_SDK}" "build-tools;36.0.0"
+          echo "ANDROID_NDK_ROOT=${ANDROID_HOME}/ndk/${NDK_VERSION}" >> $GITHUB_ENV
+
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: 'temurin'
+          java-version: 17
+          cache: 'gradle'
+
+      # same as scripts/test.sh build_openssl(): openssl tag pinned there
+      - name: Fetch OpenSSL sources
+        run: |
+          git clone https://github.com/openssl/openssl.git \
+            --depth 1 -b openssl-3.6.4 openssl-src
+
+      - name: Build libcrypto for Android ABIs
+        env:
+          OPENSSL_SRC: ${{ github.workspace }}/openssl-src
+          NO_DOCKER: 1
+        run: src/frontends/android/openssl/build.sh
+
+      - name: Prepare strongSwan sources (generate parsers/keywords)
+        run: |
+          ./autogen.sh
+          ./configure --disable-defaults --disable-dependency-tracking \
+            --enable-silent-rules
+          make -j$(nproc) distdir
+          rm -rf strongswan-*
+
+      - name: Build APK
+        run: |
+          cd src/frontends/android
+          ./gradlew assembleDebug
+
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: strongswan-ss-debug-apk
+          path: src/frontends/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14

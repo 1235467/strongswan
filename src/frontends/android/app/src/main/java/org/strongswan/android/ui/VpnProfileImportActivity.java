@@ -70,6 +70,7 @@ import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.UUID;
 
@@ -564,6 +565,42 @@ public class VpnProfileImportActivity extends AppCompatActivity
 			profile.setProxyHost(proxy.optString("host"));
 			profile.setProxyPort(getInteger(proxy, "port", 1, 65535));
 			profile.setProxyExclusions(getFlatStringList(proxy, "exclusions"));
+		}
+
+		JSONObject shadowsocks = obj.optJSONObject("shadowsocks");
+		if (shadowsocks != null)
+		{
+			String ssServer = shadowsocks.optString("server");
+			String ssMethod = shadowsocks.optString("method");
+			String ssPassword = shadowsocks.optString("password");
+			Integer ssPort = getInteger(shadowsocks, "port", 1, 65535);
+			if (!TextUtils.isEmpty(ssServer) || ssPort != null ||
+				!TextUtils.isEmpty(ssMethod) || !TextUtils.isEmpty(ssPassword))
+			{	/* if any relay property is given, a complete, supported
+				 * configuration is required, else the profile would import
+				 * fine but never connect (the socket fails closed) */
+				if (TextUtils.isEmpty(ssServer))
+				{
+					throw new JSONException(getString(R.string.profile_import_failed_value, "shadowsocks.server"));
+				}
+				if (ssPort == null)
+				{
+					throw new JSONException(getString(R.string.profile_import_failed_value, "shadowsocks.port"));
+				}
+				String[] methods = getResources().getStringArray(R.array.ss_methods);
+				if (!Arrays.asList(methods).contains(ssMethod))
+				{
+					throw new JSONException(getString(R.string.profile_import_failed_value, "shadowsocks.method"));
+				}
+				if (TextUtils.isEmpty(ssPassword))
+				{
+					throw new JSONException(getString(R.string.profile_import_failed_value, "shadowsocks.password"));
+				}
+				profile.setSsServer(ssServer);
+				profile.setSsPort(ssPort);
+				profile.setSsMethod(ssMethod);
+				profile.setSsPassword(ssPassword);
+			}
 		}
 
 		JSONObject split = obj.optJSONObject("split-tunneling");

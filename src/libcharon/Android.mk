@@ -232,6 +232,8 @@ LOCAL_SRC_FILES += $(call add_plugin, kernel-netlink)
 
 LOCAL_SRC_FILES += $(call add_plugin, socket-default)
 
+LOCAL_SRC_FILES += $(call add_plugin, socket-shadowsocks)
+
 LOCAL_SRC_FILES += $(call add_plugin, socket-dynamic)
 
 LOCAL_SRC_FILES += $(call add_plugin, stroke)
