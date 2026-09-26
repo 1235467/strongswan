@@ -414,6 +414,10 @@ METHOD(charonservice_t, get_network_manager, network_manager_t*,
 static void initiate(settings_t *settings)
 {
 	private_charonservice_t *this = (private_charonservice_t*)charonservice;
+	char *ss_server;
+	int mtu;
+
+	ss_server = settings->get_str(settings, "connection.ss_server", NULL);
 
 	lib->settings->set_str(lib->settings,
 						"charon.plugins.tnc-imc.preferred_language",
@@ -431,10 +435,14 @@ static void initiate(settings_t *settings)
 	 * for the TUN devices has to be reduced to pass traffic the IKE packets
 	 * will be a bit smaller than necessary as there is no IPsec overhead like
 	 * for the tunneled traffic (but compensating that seems like overkill) */
-	lib->settings->set_int(lib->settings,
-						"charon.fragment_size",
-						settings->get_int(settings, "global.mtu",
-										  ANDROID_DEFAULT_MTU));
+	mtu = settings->get_int(settings, "global.mtu", ANDROID_DEFAULT_MTU);
+	if (ss_server && *ss_server)
+	{	/* Shadowsocks relay adds up to 67 bytes per datagram (salt, address
+		 * header, AEAD tag), see SS_MTU_OVERHEAD in CharonVpnService for
+		 * the TUN MTU; keep IKE fragments clear of the path MTU too */
+		mtu -= SS_TRANSPORT_OVERHEAD;
+	}
+	lib->settings->set_int(lib->settings, "charon.fragment_size", mtu);
 	/* use configured interval, or an increased default to save battery power */
 	lib->settings->set_int(lib->settings,
 						"charon.keep_alive",
@@ -450,7 +458,7 @@ static void initiate(settings_t *settings)
 	 * packet, so it picks these up even though the socket exists already */
 	lib->settings->set_str(lib->settings,
 						"charon.plugins.socket-shadowsocks.server",
-						settings->get_str(settings, "connection.ss_server", NULL));
+						ss_server);
 	lib->settings->set_int(lib->settings,
 						"charon.plugins.socket-shadowsocks.port",
 						settings->get_int(settings, "connection.ss_port", 0));

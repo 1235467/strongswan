@@ -86,11 +86,23 @@ struct private_socket_shadowsocks_socket_t {
 	bool cfg_failed;
 
 	/**
+	 * Next time (monotonic) the settings are re-evaluated.  Refreshing is
+	 * rate-limited: re-reading all settings on every packet costs a rwlock
+	 * and a tree walk per key.
+	 */
+	time_t next_refresh;
+
+	/**
 	 * Serializes configuration updates (send and receive run on different
 	 * threads).
 	 */
 	mutex_t *mutex;
 };
+
+/**
+ * Interval in seconds between lazy configuration checks.
+ */
+#define CFG_REFRESH_INTERVAL 1
 
 /**
  * (Re-)load the Shadowsocks configuration if it changed.  The socket is
@@ -105,6 +117,12 @@ static void update_config(private_socket_shadowsocks_socket_t *this)
 	int port;
 
 	this->mutex->lock(this->mutex);
+	if (time_monotonic(NULL) < this->next_refresh)
+	{	/* throttle: an uncontended lock is still far cheaper than
+		 * re-reading all settings on every packet */
+		this->mutex->unlock(this->mutex);
+		return;
+	}
 	while (TRUE)
 	{
 		/* the settings are read under the mutex so a snapshot based on
@@ -141,6 +159,7 @@ static void update_config(private_socket_shadowsocks_socket_t *this)
 						 "traffic will be dropped");
 				}
 			}
+			this->next_refresh = time_monotonic(NULL) + CFG_REFRESH_INTERVAL;
 			this->mutex->unlock(this->mutex);
 			return;
 		}

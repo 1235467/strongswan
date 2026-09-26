@@ -958,6 +958,17 @@ android_service_t *android_service_create(android_creds_t *creds,
 		.tunfd = -1,
 		.mtu = settings->get_int(settings, "global.mtu", ANDROID_DEFAULT_MTU),
 	);
+	{
+		char *ss_server = settings->get_str(settings,
+											"connection.ss_server", NULL);
+
+		if (ss_server && *ss_server)
+		{	/* reserve space for the Shadowsocks UDP encapsulation added to
+			 * every datagram, so the value handed to builder->set_mtu()
+			 * keeps relayed packets below the path MTU */
+			this->mtu -= SS_TRANSPORT_OVERHEAD;
+		}
+	}
 	/* only allow queries for the VPN gateway */
 	this->dns_proxy->add_hostname(this->dns_proxy,
 			this->settings->get_str(this->settings, "connection.server", NULL));
