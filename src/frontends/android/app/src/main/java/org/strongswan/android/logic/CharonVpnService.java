@@ -87,6 +87,10 @@ public class CharonVpnService extends VpnService implements Runnable, VpnStateSe
 {
 	private static final String TAG = CharonVpnService.class.getSimpleName();
 	private static final String VPN_SERVICE_ACTION = "android.net.VpnService";
+	/* MTU reserved for transport encapsulation when relaying via Shadowsocks:
+	 * SS (salt <=32, address header <=19, AEAD tag 16) + outer ESP/UDP/IP
+	 * headers (~60 bytes); see SS_TRANSPORT_OVERHEAD in charonservice.c */
+	private static final int SS_MTU_OVERHEAD = 128;
 	public static final String DISCONNECT_ACTION = "org.strongswan.android.CharonVpnService.DISCONNECT";
 	private static final String NOTIFICATION_CHANNEL = "org.strongswan.android.CharonVpnService.VPN_STATE_NOTIFICATION";
 	public static final String LOG_FILE = "charon.log";
@@ -1190,6 +1194,12 @@ public class CharonVpnService extends VpnService implements Runnable, VpnStateSe
 			/* set a default MTU, will be set by the daemon for regular interfaces */
 			Integer mtu = profile.getMTU();
 			mMtu = mtu == null ? Constants.MTU_MAX : mtu;
+			if (profile.getSsServer() != null)
+			{	/* Shadowsocks UDP relay adds up to 67 bytes per datagram (salt,
+				 * address header, AEAD tag) on top of the ESP/UDP/IP overhead;
+				 * shrink the inner MTU so relayed packets stay unfragmented */
+				mMtu -= SS_MTU_OVERHEAD;
+			}
 		}
 
 		public void addAddress(String address, int prefixLength)

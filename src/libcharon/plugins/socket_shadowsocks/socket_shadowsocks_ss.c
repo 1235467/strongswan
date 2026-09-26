@@ -119,8 +119,20 @@ struct private_ss_ctx_t {
 	rng_t *rng;
 
 	/**
-	 * Serialize encrypt/decrypt (per-packet AEAD contexts are created on the
-	 * fly, but session state for 2022 ciphers will need this).
+	 * AEAD transform, rekeyed with the per-packet subkey (avoids creating
+	 * a crypto object per packet).
+	 */
+	aead_t *aead;
+
+	/**
+	 * PRF for HKDF-SHA1 subkey derivation, rekeyed per packet.
+	 */
+	prf_t *prf;
+
+	/**
+	 * Serialize encrypt/decrypt (the shared AEAD/PRF objects are rekeyed
+	 * per packet and must not be used concurrently; session state for
+	 * 2022 ciphers will need this too).
 	 */
 	mutex_t *mutex;
 };
@@ -167,32 +179,19 @@ static bool evp_bytes_to_key(chunk_t password, uint8_t *key, size_t key_len)
  * HKDF-SHA1(key, salt, info) -> okm, per RFC 5869, implemented on a generic
  * HMAC-SHA1 PRF.
  */
-static bool hkdf_sha1(chunk_t ikm, chunk_t salt, chunk_t info,
+static bool hkdf_sha1(prf_t *prf, chunk_t ikm, chunk_t salt, chunk_t info,
 					uint8_t *okm, size_t okm_len)
 {
-	prf_t *prf;
 	uint8_t prk[SHA1_LEN], t[SHA1_LEN];
 	size_t t_len = 0;
 	uint8_t c = 0;
 
-	prf = lib->crypto->create_prf(lib->crypto, PRF_HMAC_SHA1);
-	if (!prf)
-	{
-		DBG1(DBG_NET, "HMAC-SHA1 PRF unavailable for Shadowsocks subkey "
-			 "derivation");
-		return FALSE;
-	}
 	/* extract: PRK = HMAC(salt, IKM) */
 	if (!prf->set_key(prf, salt) ||
-		!prf->get_bytes(prf, ikm, prk))
+		!prf->get_bytes(prf, ikm, prk) ||
+		/* expand: T(n) = HMAC(PRK, T(n-1) | info | n) */
+		!prf->set_key(prf, chunk_create(prk, SHA1_LEN)))
 	{
-		prf->destroy(prf);
-		return FALSE;
-	}
-	/* expand: T(n) = HMAC(PRK, T(n-1) | info | n) */
-	if (!prf->set_key(prf, chunk_create(prk, SHA1_LEN)))
-	{
-		prf->destroy(prf);
 		return FALSE;
 	}
 	while (okm_len)
@@ -205,7 +204,6 @@ static bool hkdf_sha1(chunk_t ikm, chunk_t salt, chunk_t info,
 		seed[t_len + info.len] = ++c;
 		if (!prf->get_bytes(prf, chunk_create(seed, sizeof(seed)), t))
 		{
-			prf->destroy(prf);
 			return FALSE;
 		}
 		t_len = SHA1_LEN;
@@ -214,37 +212,39 @@ static bool hkdf_sha1(chunk_t ikm, chunk_t salt, chunk_t info,
 		okm += n;
 		okm_len -= n;
 	}
-	prf->destroy(prf);
 	return TRUE;
 }
 
 /**
- * Encode a host_t as a SOCKS5-style address header: ATYP | ADDR | PORT.
+ * Length of the encoded SOCKS5-style address header for an address family,
+ * 0 if the family is not encodable.
  */
-static chunk_t encode_addr(host_t *host)
+static size_t addr_header_len(int family)
 {
-	uint8_t atyp;
-	chunk_t addr, out;
-	uint16_t port;
-
-	switch (host->get_family(host))
+	switch (family)
 	{
 		case AF_INET:
-			atyp = 0x01;
-			break;
+			return 1 + 4 + 2;
 		case AF_INET6:
-			atyp = 0x04;
-			break;
+			return 1 + 16 + 2;
 		default:
-			return chunk_empty;
+			return 0;
 	}
-	addr = host->get_address(host);
-	out = chunk_alloc(1 + addr.len + 2);
-	out.ptr[0] = atyp;
-	memcpy(out.ptr + 1, addr.ptr, addr.len);
+}
+
+/**
+ * Encode a host_t as a SOCKS5-style address header into out:
+ * ATYP | ADDR | PORT.  out must have addr_header_len() bytes of space.
+ */
+static void encode_addr(host_t *host, uint8_t *out)
+{
+	chunk_t addr = host->get_address(host);
+	uint16_t port;
+
+	out[0] = host->get_family(host) == AF_INET ? 0x01 : 0x04;
+	memcpy(out + 1, addr.ptr, addr.len);
 	port = htons(host->get_port(host));
-	memcpy(out.ptr + 1 + addr.len, &port, 2);
-	return out;
+	memcpy(out + 1 + addr.len, &port, 2);
 }
 
 /**
@@ -297,30 +297,24 @@ static host_t *decode_addr(chunk_t data, chunk_t *payload)
 }
 
 /**
- * Create an AEAD transform for the per-packet subkey.
+ * Rekey the shared AEAD transform with a per-packet subkey.
+ *
+ * strongSwan's AEAD convention (RFC 4106): key = cipher key || implicit
+ * salt, nonce = salt || explicit IV.  Shadowsocks uses an all-zero 12 byte
+ * nonce, so the implicit salt and the IV are all zeroes.
  */
-static aead_t *create_aead(private_ss_ctx_t *this, chunk_t subkey)
+static bool set_subkey(private_ss_ctx_t *this, chunk_t subkey)
 {
-	aead_t *aead;
-	uint8_t keybuf[this->cipher->key_len + SS_AEAD_SALT_LEN];
+	/* cipher key lengths are <= 32 bytes */
+	uint8_t keybuf[32 + SS_AEAD_SALT_LEN];
+	bool ok;
 
-	/* strongSwan's AEAD convention (RFC 4106): key = cipher key || implicit
-	 * salt, nonce = salt || explicit IV.  Shadowsocks uses an all-zero 12
-	 * byte nonce, so salt and IV are all zeroes. */
-	aead = lib->crypto->create_aead(lib->crypto, this->cipher->encr,
-									this->cipher->key_len, SS_AEAD_SALT_LEN);
-	if (!aead)
-	{
-		return NULL;
-	}
 	memcpy(keybuf, subkey.ptr, this->cipher->key_len);
 	memset(keybuf + this->cipher->key_len, 0, SS_AEAD_SALT_LEN);
-	if (!aead->set_key(aead, chunk_create(keybuf, sizeof(keybuf))))
-	{
-		aead->destroy(aead);
-		return NULL;
-	}
-	return aead;
+	ok = this->aead->set_key(this->aead,
+				chunk_create(keybuf, this->cipher->key_len + SS_AEAD_SALT_LEN));
+	memwipe(keybuf, sizeof(keybuf));
+	return ok;
 }
 
 /**
@@ -329,48 +323,42 @@ static aead_t *create_aead(private_ss_ctx_t *this, chunk_t subkey)
 static bool encrypt_classic(private_ss_ctx_t *this, host_t *dst,
 							chunk_t payload, chunk_t *out)
 {
-	chunk_t addr, plain, salt, subkey, ct = chunk_empty;
-	uint8_t iv[SS_AEAD_IV_LEN] = {};
-	aead_t *aead;
+	uint8_t subkey[32], iv[SS_AEAD_IV_LEN] = {};
+	chunk_t buf, salt, plain;
+	size_t addr_len;
 	bool success = FALSE;
 
-	addr = encode_addr(dst);
-	if (!addr.ptr)
+	addr_len = addr_header_len(dst->get_family(dst));
+	if (!addr_len)
 	{
 		return FALSE;
 	}
-	plain = chunk_cat("cc", addr, payload);
-	chunk_free(&addr);
-
-	salt = chunk_alloc(this->cipher->key_len);
-	subkey = chunk_alloc(this->cipher->key_len);
-	if (!this->rng->get_bytes(this->rng, salt.len, salt.ptr) ||
-		!hkdf_sha1(this->key, salt,
-				   chunk_from_str(SS_SUBKEY_INFO), subkey.ptr, subkey.len))
+	/* single allocation holding the complete relay datagram:
+	 * [salt][AEAD(addr | payload)][tag], encryption happens in place */
+	buf = chunk_alloc(this->cipher->key_len + addr_len + payload.len +
+					  SS_TAG_LEN);
+	salt = chunk_create(buf.ptr, this->cipher->key_len);
+	if (this->rng->get_bytes(this->rng, salt.len, salt.ptr) &&
+		hkdf_sha1(this->prf, this->key, salt,
+				  chunk_from_str(SS_SUBKEY_INFO), subkey,
+				  this->cipher->key_len) &&
+		set_subkey(this, chunk_create(subkey, this->cipher->key_len)))
 	{
-		goto out;
+		encode_addr(dst, buf.ptr + salt.len);
+		memcpy(buf.ptr + salt.len + addr_len, payload.ptr, payload.len);
+		plain = chunk_create(buf.ptr + salt.len, addr_len + payload.len);
+		success = this->aead->encrypt(this->aead, plain, chunk_empty,
+									chunk_create(iv, sizeof(iv)), NULL);
 	}
-	aead = create_aead(this, subkey);
-	if (!aead)
-	{
-		goto out;
-	}
-	success = aead->encrypt(aead, plain, chunk_empty,
-							chunk_create(iv, sizeof(iv)), &ct);
-	aead->destroy(aead);
+	memwipe(subkey, sizeof(subkey));
 	if (success)
 	{
-		*out = chunk_cat("mm", salt, ct);
+		*out = buf;
 	}
-out:
-	chunk_clear(&subkey);
-	if (!success)
-	{	/* salt is only consumed on success; AEAD implementations may
-		 * allocate ct before failing (openssl does) */
-		chunk_free(&salt);
-		chunk_free(&ct);
+	else
+	{
+		chunk_free(&buf);
 	}
-	chunk_clear(&plain);
 	return success;
 }
 
@@ -380,10 +368,9 @@ out:
 static bool decrypt_classic(private_ss_ctx_t *this, chunk_t in,
 							host_t **src, chunk_t *payload)
 {
-	chunk_t salt, subkey, ct, plain = chunk_empty;
+	uint8_t subkey[32], iv[SS_AEAD_IV_LEN] = {};
+	chunk_t salt, ct, plain = chunk_empty;
 	host_t *host;
-	uint8_t iv[SS_AEAD_IV_LEN] = {};
-	aead_t *aead;
 	bool success = FALSE;
 
 	if (in.len < this->cipher->key_len + SS_TAG_LEN + 1 + 4 + 2)
@@ -393,20 +380,14 @@ static bool decrypt_classic(private_ss_ctx_t *this, chunk_t in,
 	salt = chunk_create(in.ptr, this->cipher->key_len);
 	ct = chunk_skip(in, this->cipher->key_len);
 
-	subkey = chunk_alloc(this->cipher->key_len);
-	if (!hkdf_sha1(this->key, salt, chunk_from_str(SS_SUBKEY_INFO),
-				   subkey.ptr, subkey.len))
+	if (hkdf_sha1(this->prf, this->key, salt, chunk_from_str(SS_SUBKEY_INFO),
+				  subkey, this->cipher->key_len) &&
+		set_subkey(this, chunk_create(subkey, this->cipher->key_len)))
 	{
-		goto out;
+		success = this->aead->decrypt(this->aead, ct, chunk_empty,
+									chunk_create(iv, sizeof(iv)), &plain);
 	}
-	aead = create_aead(this, subkey);
-	if (!aead)
-	{
-		goto out;
-	}
-	success = aead->decrypt(aead, ct, chunk_empty,
-							chunk_create(iv, sizeof(iv)), &plain);
-	aead->destroy(aead);
+	memwipe(subkey, sizeof(subkey));
 	if (success)
 	{
 		host = decode_addr(plain, payload);
@@ -428,8 +409,6 @@ static bool decrypt_classic(private_ss_ctx_t *this, chunk_t in,
 		 * (openssl does before the tag verification) */
 		chunk_free(&plain);
 	}
-out:
-	chunk_clear(&subkey);
 	return success;
 }
 
@@ -489,6 +468,8 @@ METHOD(ss_ctx_t, destroy, void,
 	DESTROY_IF(this->server);
 	chunk_clear(&this->key);
 	DESTROY_IF(this->rng);
+	DESTROY_IF(this->aead);
+	DESTROY_IF(this->prf);
 	this->mutex->destroy(this->mutex);
 	free(this);
 }
@@ -590,6 +571,20 @@ ss_ctx_t *ss_ctx_create(char *server, uint16_t port, char *method,
 		DBG1(DBG_NET, "no strong RNG available for Shadowsocks salts");
 		destroy(this);
 		return NULL;
+	}
+	if (!this->cipher->is2022)
+	{	/* rekeyed per packet, no need to allocate them repeatedly */
+		this->aead = lib->crypto->create_aead(lib->crypto,
+							this->cipher->encr, this->cipher->key_len,
+							SS_AEAD_SALT_LEN);
+		this->prf = lib->crypto->create_prf(lib->crypto, PRF_HMAC_SHA1);
+		if (!this->aead || !this->prf)
+		{
+			DBG1(DBG_NET, "Shadowsocks cipher '%s' or HMAC-SHA1 PRF "
+				 "unavailable", method);
+			destroy(this);
+			return NULL;
+		}
 	}
 	return &this->public;
 }
