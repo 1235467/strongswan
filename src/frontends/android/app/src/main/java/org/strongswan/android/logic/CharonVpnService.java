@@ -1195,9 +1195,12 @@ public class CharonVpnService extends VpnService implements Runnable, VpnStateSe
 			Integer mtu = profile.getMTU();
 			mMtu = mtu == null ? Constants.MTU_MAX : mtu;
 			if (profile.getSsServer() != null)
-			{	/* Shadowsocks UDP relay adds up to 67 bytes per datagram (salt,
-				 * address header, AEAD tag) on top of the ESP/UDP/IP overhead;
-				 * shrink the inner MTU so relayed packets stay unfragmented */
+			{	/* fallback default in case the daemon never calls setMtu(): the
+				 * Shadowsocks UDP encapsulation adds up to 67 bytes per datagram
+				 * (salt, address header, AEAD tag) plus ~60 bytes of outer
+				 * ESP/UDP/IP headers.  android_service hands over an MTU with
+				 * the same overhead already subtracted, so this assignment is
+				 * replaced - never added - by setMtu(). */
 				mMtu -= SS_MTU_OVERHEAD;
 			}
 		}

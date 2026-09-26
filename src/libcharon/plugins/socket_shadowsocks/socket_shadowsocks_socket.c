@@ -116,11 +116,13 @@ static void update_config(private_socket_shadowsocks_socket_t *this)
 	bool pending = FALSE, failed = FALSE;
 	int port;
 
+	this->mutex->lock(this->mutex);
 	if (time_monotonic(NULL) < this->next_refresh)
-	{	/* unchecked read is fine: worst case is a harmless extra refresh */
+	{	/* throttle: an uncontended lock is still far cheaper than
+		 * re-reading all settings on every packet */
+		this->mutex->unlock(this->mutex);
 		return;
 	}
-	this->mutex->lock(this->mutex);
 	while (TRUE)
 	{
 		/* the settings are read under the mutex so a snapshot based on

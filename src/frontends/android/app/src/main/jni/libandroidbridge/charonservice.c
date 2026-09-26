@@ -49,13 +49,6 @@
 #define ANDROID_KEEPALIVE_INTERVAL 45
 #define ANDROID_KEEPALIVE_DPD_MARGIN 20
 
-/**
- * Transport overhead when relaying via Shadowsocks: SS encapsulation (salt
- * <=32, SOCKS5-style address header <=19, AEAD tag 16) plus outer ESP/UDP/IP
- * headers (~60 bytes), so IKE/ESP payloads stay clear of the path MTU.
- */
-#define SS_TRANSPORT_OVERHEAD 128
-
 typedef struct private_charonservice_t private_charonservice_t;
 
 /**

@@ -51,6 +51,14 @@ typedef struct charonservice_t charonservice_t;
 #define ANDROID_DEFAULT_MTU 1400
 
 /**
+ * Transport overhead when relaying via Shadowsocks: SS encapsulation (salt
+ * <=32, SOCKS5-style address header <=19, AEAD tag 16) plus outer ESP/UDP/IP
+ * headers (~60 bytes), so IKE/ESP payloads stay clear of the path MTU.
+ * SS_MTU_OVERHEAD in CharonVpnService.java mirrors this value.
+ */
+#define SS_TRANSPORT_OVERHEAD 128
+
+/**
  * VPN status codes. As defined in CharonVpnService.java
  */
 enum android_vpn_state_t {
